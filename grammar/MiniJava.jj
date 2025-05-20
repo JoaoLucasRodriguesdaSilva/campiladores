@@ -1,10 +1,5 @@
 /**
  * Arquivo de Especificação JavaCC para MiniJava (Completo com Lookaheads para Warnings)
- *
- * Enzo Lozano Abreu - 538196
- * Gutemberg dos Santos Andrade - 493938
- * João Lucas Rodrigues da Silva - 536997
- * Victor Medeiros Martins - 401339
  */
 
 options {
@@ -17,6 +12,8 @@ options {
 PARSER_BEGIN(MiniJavaParser)
 
 import java.io.*;
+import syntaxtree.*;
+import visitor.*;
 
 public class MiniJavaParser {
 
@@ -87,100 +84,235 @@ TOKEN : {
 // REGRAS GRAMATICAIS
 // --------------------
 
-void Program() : {} { MainClass() ( ClassDeclaration() )* <EOF> }
+Program Program() : {MainClass main; ClassDeclList classList = new ClassDeclList(); ClassDecl cl;}
+{ (main=MainClass())
+  (cl=ClassDeclaration() { classList.addElement(cl); } )*
+  <EOF>
+  { return new Program(main, classList); }
+}
 
-void MainClass() : {}
+MainClass MainClass() : { Token classNameToken, mainArgNameToken; Statement mainStatement; Identifier className, mainArgName; }
 {
-  <CLASS> <IDENTIFIER> <LBRACE>
-  <PUBLIC> <STATIC> <VOID> <MAIN> <LPAREN> <STRING> <LBRACKET> <RBRACKET> <IDENTIFIER> <RPAREN>
-  <LBRACE> Statement() <RBRACE>
+  <CLASS> classNameToken=<IDENTIFIER> <LBRACE>
+  <PUBLIC> <STATIC> <VOID> <MAIN> <LPAREN> <STRING> <LBRACKET> <RBRACKET> mainArgNameToken=<IDENTIFIER> <RPAREN>
+  <LBRACE> mainStatement=Statement() <RBRACE>
   <RBRACE>
+  {
+    className = new Identifier(classNameToken.image);
+    mainArgName = new Identifier(mainArgNameToken.image);
+    return new MainClass(className, mainArgName, mainStatement);
+  }
 }
 
-void ClassDeclaration() : {}
+ClassDecl ClassDeclaration() : { Token classNameToken, superClassToken = null; Identifier className, superClass = null; VarDeclList varList = new VarDeclList(); MethodDeclList methodList = new MethodDeclList(); VarDecl varDecl; MethodDecl methodDecl; }
 {
-  <CLASS> <IDENTIFIER> ( <EXTENDS> <IDENTIFIER> )?
-  <LBRACE> ( VarDeclaration() )* ( MethodDeclaration() )* <RBRACE>
-}
-
-void VarDeclaration() : {} { Type() <IDENTIFIER> <SEMICOLON> }
-
-void MethodDeclaration() : {}
-{
-  <PUBLIC> Type() <IDENTIFIER> <LPAREN> ( FormalParameterList() )? <RPAREN>
+  <CLASS> classNameToken=<IDENTIFIER>
+  (
+    <EXTENDS> superClassToken=<IDENTIFIER>
+  )?
   <LBRACE>
-  // Adicionar LOOKAHEAD aqui para distinguir VarDeclaration de Statement
-  // Verifique se a sequência Type Identifier ; realmente existe antes de tentar VarDeclaration
-  ( LOOKAHEAD( Type() <IDENTIFIER> <SEMICOLON> ) VarDeclaration() )*
-  ( Statement() )*            // Só tenta Statement se não for VarDeclaration
-  <RETURN> Expression() <SEMICOLON>
+  ( varDecl=VarDeclaration() { varList.addElement(varDecl); } )*
+  ( methodDecl=MethodDeclaration() { methodList.addElement(methodDecl); } )*
   <RBRACE>
+  {
+    className = new Identifier(classNameToken.image);
+    if (superClassToken != null) {
+      superClass = new Identifier(superClassToken.image);
+      return new ClassDeclExtends(className, superClass, varList, methodList);
+    } else {
+      return new ClassDeclSimple(className, varList, methodList);
+    }
+  }
 }
 
-void FormalParameterList() : {} { FormalParameter() ( <COMMA> FormalParameter() )* }
+VarDecl VarDeclaration() : { Type t; Token id; Identifier varId; }
+{
+  t=Type() id=<IDENTIFIER> <SEMICOLON>
+  {
+    varId = new Identifier(id.image);
+    return new VarDecl(t, varId);
+  }
+}
 
-void FormalParameter() : {} { Type() <IDENTIFIER> }
+MethodDecl MethodDeclaration() : 
+{
+  Token methodIdToken;
+  Type returnType;
+  FormalList formalParamList = new FormalList();
+  VarDeclList varDeclList = new VarDeclList();
+  StatementList statementList = new StatementList();
+  Formal formalParam;
+  VarDecl varDecl;
+  Statement statement;
+  Exp returnExp;
+  Identifier methodId;
+}
+{
+  <PUBLIC>
+  returnType=Type()
+  methodIdToken=<IDENTIFIER>
+  <LPAREN>
+  ( formalParamList=FormalParameterList() )?
+  <RPAREN>
+  <LBRACE>
+  (
+    LOOKAHEAD( Type() <IDENTIFIER> <SEMICOLON> )
+    varDecl=VarDeclaration() { varDeclList.addElement(varDecl); }
+  )*
+  (
+    statement=Statement() { statementList.addElement(statement); }
+  )*
+  <RETURN>
+  returnExp=Expression()
+  <SEMICOLON>
+  <RBRACE>
+  {
+    methodId = new Identifier(methodIdToken.image);
+    return new MethodDecl(returnType, methodId, formalParamList, varDeclList, statementList, returnExp);
+  }
+}
 
-void Type() : {}
+FormalList FormalParameterList() : { FormalList formalList = new FormalList(); Formal formalParam; }
+{
+  ( formalParam=FormalParameter() { formalList.addElement(formalParam); } )
+  ( <COMMA> formalParam=FormalParameter() { formalList.addElement(formalParam); } )*
+  { return formalList; }
+}
+
+Formal FormalParameter() : { Type t; Token id; Formal formalParam; }
+{
+  t=Type() id=<IDENTIFIER>
+  {
+    formalParam = new Formal(t, new Identifier(id.image));
+    return formalParam;
+  }
+}
+
+Type Type() : { Type type; Token id; }
 {
   LOOKAHEAD(2) <INT> <LBRACKET> <RBRACKET>
+  { type = new IntArrayType(); }
 | <BOOLEAN>
+  { type = new BooleanType(); }
 | <INT>
-| <IDENTIFIER>
+  { type = new IntegerType(); }
+| id=<IDENTIFIER>
+  { type = new IdentifierType(id.image); }
+  { return type; }
 }
 
-void Statement() : {}
+Statement Statement() : { Statement s, s1, s2; Exp exp, index, value; Identifier id; StatementList sl = new StatementList(); IdentifierExp idExp; Assign assign; ArrayAssign arrayAssign; }
 {
-  <LBRACE> ( Statement() )* <RBRACE>
-| <IF> <LPAREN> Expression() <RPAREN> Statement() <ELSE> Statement()
-| <WHILE> <LPAREN> Expression() <RPAREN> Statement()
-| <PRINTLN> <LPAREN> Expression() <RPAREN> <SEMICOLON>
+  <LBRACE> ( s=Statement() { sl.addElement(s); } )* <RBRACE> { return new Block(sl); }
+| <IF> <LPAREN> exp=Expression() <RPAREN> s1=Statement() <ELSE> s2=Statement() { return new If(exp, s1, s2); }
+| <WHILE> <LPAREN> exp=Expression() <RPAREN> s=Statement() { return new While(exp, s); }
+| <PRINTLN> <LPAREN> exp=Expression() <RPAREN> <SEMICOLON> { return new Print(exp); }
 | // Lookahead para distinguir atribuição de array
   LOOKAHEAD( Identifier() <LBRACKET> )
-  Identifier() <LBRACKET> Expression() <RBRACKET> <ASSIGN> Expression() <SEMICOLON>
+  id=Identifier() <LBRACKET> index=Expression() <RBRACKET> <ASSIGN> value=Expression() <SEMICOLON>
+  {
+    arrayAssign = new ArrayAssign(id, index, value);
+    return arrayAssign;
+  }
 | // Lookahead EXPLÍCITO para atribuição simples
   LOOKAHEAD( Identifier() <ASSIGN> ) // <-- ADICIONE ESTE LOOKAHEAD
-  Identifier() <ASSIGN> Expression() <SEMICOLON>
+  id=Identifier() <ASSIGN> value=Expression() <SEMICOLON>
+  {
+    assign = new Assign(id, value);
+    return assign;
+  }
 }
 
 // --- Regras de Expressão (LL(1) com precedência) ---
 
-void Expression() : {} { CompareExpression() ( <AND> CompareExpression() )* }
-
-void CompareExpression() : {} { AddExpression() ( <LT> AddExpression() )* }
-
-void AddExpression() : {} { MultiplyExpression() ( ( <PLUS> | <MINUS> ) MultiplyExpression() )* }
-
-void MultiplyExpression() : {} { UnaryExpression() ( <MULTIPLY> UnaryExpression() )* }
-
-void UnaryExpression() : {} { <NOT> UnaryExpression() | PostfixExpression() }
-
-void PostfixExpression() : {}
+Exp Expression() : { Exp left, right; }
 {
-  PrimaryExpression()
-  ( // Adicionado LOOKAHEAD(2) para resolver conflito .length vs .Identifier()
-    <LBRACKET> Expression() <RBRACKET>
-  | LOOKAHEAD(2) // Resolve Warning 2
-    <DOT> <LENGTH>
-  | <DOT> <IDENTIFIER> <LPAREN> ( ExpressionList() )? <RPAREN>
+  left=CompareExpression()
+  (
+    <AND> right=CompareExpression() { left = new And(left, right); }
   )*
+  { return left; }
 }
 
-void PrimaryExpression() : {}
+Exp CompareExpression() : { Exp left, right; }
 {
-  <INTEGER_LITERAL>
-| <TRUE>
-| <FALSE>
-| <IDENTIFIER>
-| <THIS>
-| <LPAREN> Expression() <RPAREN>
+  left=AddExpression()
+  (
+    <LT> right=AddExpression() { left = new LessThan(left, right); }
+  )*
+  { return left; }
+}
+
+Exp AddExpression() : { Exp left, right; Token op; }
+{
+  left=MultiplyExpression()
+  (
+    ( op=<PLUS> | op=<MINUS> ) right=MultiplyExpression()
+    {
+      if (op.kind == PLUS) {
+        left = new Plus(left, right);
+      } else {
+        left = new Minus(left, right);
+      }
+    }
+  )*
+  { return left; }
+}
+
+Exp MultiplyExpression() : { Exp left, right; }
+{
+  left=UnaryExpression()
+  (
+    <MULTIPLY> right=UnaryExpression() { left = new Times(left, right); }
+  )*
+  { return left; }
+}
+
+Exp UnaryExpression() : { Exp unaryExp, postfixExp; }
+{
+  <NOT> unaryExp=UnaryExpression() {return new Not(unaryExp); }
+  | postfixExp=PostfixExpression() { return postfixExp; }
+}
+
+Exp PostfixExpression() : {Exp primaryExp, indexExp; Token methodId; ExpList args = null; }
+{
+  primaryExp=PrimaryExpression()
+  (
+    <LBRACKET> indexExp=Expression() <RBRACKET>
+    { primaryExp = new ArrayLookup(primaryExp, indexExp); }
+  | LOOKAHEAD(2)
+    <DOT> <LENGTH>
+    { primaryExp = new ArrayLength(primaryExp); }
+  | <DOT> methodId=<IDENTIFIER> <LPAREN> ( args=ExpressionList() )? <RPAREN>
+    { primaryExp = new Call(primaryExp, new Identifier(methodId.image), args != null ? args : new ExpList()); }
+  )*
+  { return primaryExp; }
+}
+
+Exp PrimaryExpression() : { Token intLiteralToken, identifierToken; Exp expr; Identifier identifier; }
+{
+  intLiteralToken=<INTEGER_LITERAL> { return new IntegerLiteral(Integer.parseInt(intLiteralToken.image)); }
+| <TRUE> { return new True(); }
+| <FALSE> { return new False(); }
+| identifierToken=<IDENTIFIER> { identifier = new Identifier(identifierToken.image); return new IdentifierExp(identifier.toString()); }
+| <THIS> { return new This(); }
+| <LPAREN> expr=Expression() <RPAREN> { return expr; }
 | // Adicionado LOOKAHEAD(2) para resolver conflito new int[] vs new Identifier()
   LOOKAHEAD(2) // Resolve Warning 3
-  <NEW> <INT> <LBRACKET> Expression() <RBRACKET>
-| <NEW> <IDENTIFIER> <LPAREN> <RPAREN>
+  <NEW> <INT> <LBRACKET> expr=Expression() <RBRACKET> { return new NewArray(expr); }
+| <NEW> identifierToken=<IDENTIFIER> <LPAREN> <RPAREN> { identifier = new Identifier(identifierToken.image); return new NewObject(identifier); }
 }
 
-void ExpressionList() : {} { Expression() ( <COMMA> Expression() )* }
+ExpList ExpressionList() : { ExpList list = new ExpList(); Exp e; }
+{
+  ( e=Expression() { list.addElement(e); } )
+  ( <COMMA> e=Expression() { list.addElement(e); } )*
+  { return list; }
+}
 
 // Regra auxiliar para lookahead em Statement
-void Identifier() : {} { <IDENTIFIER> }
+Identifier Identifier() : { Token t; }
+{
+  t=<IDENTIFIER>
+  { return new Identifier(t.image); }
+}

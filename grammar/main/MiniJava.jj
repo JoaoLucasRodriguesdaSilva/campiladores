@@ -10,47 +10,13 @@ options {
 }
 
 PARSER_BEGIN(MiniJavaParser)
-
+package main;
 import java.io.*;
 import syntaxtree.*;
 import visitor.*;
 
 public class MiniJavaParser {
 
-  public static void main(String[] args) {
-    System.out.println("Analisador MiniJava iniciado.");
-    MiniJavaParser parser;
-    if (args.length == 0) {
-      System.out.println("Lendo da entrada padrão...");
-      parser = new MiniJavaParser(System.in);
-    } else if (args.length == 1) {
-      try {
-        System.out.println("Lendo do arquivo: " + args[0]);
-        parser = new MiniJavaParser(new FileInputStream(args[0]));
-      } catch (FileNotFoundException e) {
-        System.err.println("Erro: Arquivo não encontrado: " + args[0]);
-        return;
-      }
-    } else {
-      System.err.println("Uso: java MiniJavaParser [arquivo]");
-      return;
-    }
-
-    try {
-      parser.Program();
-      System.out.println("\nAnálise sintática concluída com sucesso!");
-    } catch (ParseException e) {
-      System.err.println("\nErro de Sintaxe:");
-      System.err.println(e.getMessage());
-      // e.printStackTrace();
-    } catch (TokenMgrError e) {
-      System.err.println("\nErro Léxico:");
-      System.err.println(e.getMessage());
-    } catch (Exception e) {
-      System.err.println("\nErro inesperado:");
-      e.printStackTrace();
-    }
-  }
 }
 
 PARSER_END(MiniJavaParser)
@@ -192,10 +158,13 @@ Type Type() : { Type type; Token id; }
 {
   LOOKAHEAD(2) <INT> <LBRACKET> <RBRACKET>
   { type = new IntArrayType(); }
+  {return type;}
 | <BOOLEAN>
   { type = new BooleanType(); }
+  {return type;}
 | <INT>
   { type = new IntegerType(); }
+  {return type;}
 | id=<IDENTIFIER>
   { type = new IdentifierType(id.image); }
   { return type; }

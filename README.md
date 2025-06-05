@@ -64,7 +64,7 @@ Siga estas etapas para configurar seu ambiente e executar o parser:
 
 ### Passo 4: Gerar o Código do Parser
 
-1.  **Navegue até o diretório:** Certifique-se de que você está no diretório que contém o arquivo `MiniJava.jj`.
+1.  **Navegue até o diretório:** Certifique-se de que você está no diretório `grammar/main`.
 2.  **Execute o JavaCC:** Use o comando `javacc` para processar o arquivo de gramática:
     ```bash
     javacc MiniJava.jj
@@ -73,7 +73,7 @@ Siga estas etapas para configurar seu ambiente e executar o parser:
 
 ### Passo 5: Compilar o Código Java Gerado
 
-1.  **Use o compilador Java (javac):** Compile todos os arquivos `.java` gerados (incluindo `MiniJavaParser.java`):
+1.  **Use o compilador Java (javac):** Volte para o diretório `grammar` e compile todos os arquivos `.java`:
     ```bash
     javac *.java
     ```
@@ -84,15 +84,15 @@ Siga estas etapas para configurar seu ambiente e executar o parser:
 1.  **Execute a classe principal do parser:** Agora você pode executar o parser compilado, passando o nome de um arquivo MiniJava como argumento.
     *   **Para testar `Factorial.java`:**
         ```bash
-        java MiniJavaParser Factorial.java
+        java Main Factorial.java
         ```
     *   **Para testar `QuickSort.java`:**
         ```bash
-        java MiniJavaParser QuickSort.java
+        java Main QuickSort.java
         ```
     *   **Para testar `LinkedList.java`:**
         ```bash
-        java MiniJavaParser LinkedList.java
+        java Main LinkedList.java
         ```
 
 2.  **Verifique a Saída:**
@@ -119,7 +119,7 @@ Siga estas etapas para configurar seu ambiente e executar o parser:
 3.  **Testando com Entrada Padrão (Opcional):**
     *   Você também pode executar o parser sem argumentos para digitar o código MiniJava diretamente no terminal:
         ```bash
-        java MiniJavaParser
+        java Main
         ```
     *   Digite ou cole o código MiniJava.
     *   Quando terminar, sinalize o fim da entrada (EOF): Pressione `Ctrl+D` em uma linha vazia. O parser tentará analisar o que você digitou.
